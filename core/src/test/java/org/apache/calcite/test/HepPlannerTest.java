@@ -27,13 +27,7 @@ import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.logical.LogicalIntersect;
 import org.apache.calcite.rel.logical.LogicalUnion;
-import org.apache.calcite.rel.rules.CalcMergeRule;
-import org.apache.calcite.rel.rules.CoerceInputsRule;
-import org.apache.calcite.rel.rules.FilterToCalcRule;
-import org.apache.calcite.rel.rules.ProjectRemoveRule;
-import org.apache.calcite.rel.rules.ProjectToCalcRule;
-import org.apache.calcite.rel.rules.ReduceExpressionsRule;
-import org.apache.calcite.rel.rules.UnionToDistinctRule;
+import org.apache.calcite.rel.rules.*;
 
 import com.google.common.collect.ImmutableList;
 
@@ -313,6 +307,23 @@ public class HepPlannerTest extends RelOptTestBase {
     assertEquals(planner.getMaterializations().get(0), mat1);
     planner.clear();
     assertEquals(planner.getMaterializations().size(), 0);
+  }
+
+  @Test public void testRewriteMaterialization() {
+    HepProgram hepProgram = HepProgram.builder()
+            .addRuleInstance(AbstractMaterializedViewRule.INSTANCE_JOIN)
+            .build();
+    HepPlanner planner = new HepPlanner(hepProgram);
+    RelNode tableRel = tester.convertSqlToRel("select * from dept d join emp e on e.deptno = d.deptno where e.deptno = 10").rel;
+    RelNode queryRel = tableRel;
+    RelOptMaterialization mat1 = new RelOptMaterialization(
+            tableRel, queryRel, null, ImmutableList.of("default", "mv"));
+    planner.addMaterialization(mat1);
+
+    RelNode query = tester.convertSqlToRel("select * from dept join emp on emp.deptno = dept.deptno").rel;
+    planner.setRoot(query);
+    RelNode res = planner.findBestExp();
+    System.out.println(res);
   }
 
   private long checkRuleApplyCount(HepMatchOrder matchOrder) {
